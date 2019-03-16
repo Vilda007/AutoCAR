@@ -1,51 +1,54 @@
-long lastJob250ms = 0, lastJob5s = 0;
-int carGO = 0; //go?
-int carMIN = 50; // minimal Distance
-int carXMIN = 30; // minimal Distance (Emergency)
-long carF = 0; // Distance in Front
-long carB = 0; // Distance in Back
-long carR = 0; // Distance on Right
-long carL = 0; // Distance on Left
+long lastJob1s = 0, lastJob30s = 0, lastJob1min = 0;
+int  tftw = 0, tfth = 0; // Display width, height
+int CarGO = 0;    //go?
+int CarOK = 80;   // OK Distance
+int CarMIN = 60;  // minimal Distance
+int CarXMIN = 35; // minimal Distance (Emergency)
+long CarF = 0;    // Distance in Front
+long CarB = 0;    // Distance in Back
+long CarR = 0;    // Distance on Right
+long CarL = 0;    // Distance on Left
 long duration, distance;
 
 /*
-  US Sensor Echo Trigger
-  RIGHT     D0   D2
-  FRONT     D2   D3
-  BACK      D4   D5
-  LEFT      D6   D7
+  US distance Sensors HC-SR04
+  Sensor Trigger Echo
+  FRONT  49      48
+  BACK   51      50
+  LEFT   53      52
+  RIGHT  23      22
 */
-#define echoPinR 0
-#define trigPinR 2
-#define echoPinF 3
-#define trigPinF 4
-#define echoPinB 5
-#define trigPinB 6
-#define echoPinL 7
-#define trigPinL 8
+#define echoPinR 22
+#define trigPinR 23
+#define echoPinF 48
+#define trigPinF 49
+#define echoPinB 50
+#define trigPinB 51
+#define echoPinL 52
+#define trigPinL 53
 
-#include <ESP8266WiFi.h>
-#include <ESP8266WiFiMulti.h>
-#include <WiFiClient.h>
-#include <ESP8266WebServer.h>
-#include <ESP8266mDNS.h>
-//#include <WiFiUdp.h>
-//#include <ArduinoOTA.h>
+#include <Adafruit_GFX.h>    // Core graphics library
+#include "SWTFT.h" // Hardware-specific library
 
-ESP8266WiFiMulti wifiMulti;
-ESP8266WebServer server(80);
+// Assign human-readable names to some common 16-bit color values:
+#define BLACK   0x0000
+#define BLUE    0x001F
+#define RED     0xF800
+#define GREEN   0x07E0
+#define CYAN    0x07FF
+#define MAGENTA 0xF81F
+#define YELLOW  0xFFE0
+#define WHITE   0xFFFF
+#define ORANGE  0xFC00
 
-void handleRoot();
-void handleGo();
-void handleNotFound();
-void drawGraph();
+SWTFT tft;
 
-//SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
-//SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP SETUP
+
+//SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-SETUP-
 void setup() {
-  Serial.begin(115200);         // Start the Serial communication to send messages to the computer
+  Serial.begin(9600);
+  Serial.println(F("AutoCAR booting up"));
   delay(10);
-
   pinMode(trigPinR, OUTPUT);
   pinMode(echoPinR, INPUT);
   pinMode(trigPinF, OUTPUT);
@@ -54,222 +57,77 @@ void setup() {
   pinMode(echoPinB, INPUT);
   pinMode(trigPinL, OUTPUT);
   pinMode(echoPinL, INPUT);
-
-  WiFi.mode(WIFI_STA);
-
-  wifiMulti.addAP("HOUSLEcz-top", "guarneri");
-  wifiMulti.addAP("HOUSLEcz-vrch", "guarneri");
-  wifiMulti.addAP("HOUSLEcz-dole", "guarneri");
-  wifiMulti.addAP("krabitchka", "guarneri");
-  wifiMulti.addAP("HOUSLEcz-modem", "guarneri");
-  wifiMulti.addAP("iTRUBEC", "1234567890");
-
-  Serial.println("");
-  Serial.print("Connecting");
-  int i = 0;
-  while (wifiMulti.run() != WL_CONNECTED) { // Wait for the Wi-Fi to connect: scan for Wi-Fi networks, and connect to the strongest of the networks above
-    delay(1000);
-    Serial.print('.');
-  }
-  Serial.println('\n');
-  Serial.print("Connected to ");
-  Serial.println(WiFi.SSID());              // Tell us what network we're connected to
-  Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());           // Send the IP address of the ESP8266 to the computer
-
-  if (MDNS.begin("autocar")) {              // http://autocar.home
-    Serial.print("MDNS responder started: ");
-    Serial.print("http://");
-    Serial.print(WiFi.localIP());
-    Serial.print(" - ");
-    Serial.print("http://autocar.local");
-    Serial.print(" - ");
-    Serial.println("http://autocar.home");
-  } else {
-    Serial.println("Error setting up MDNS responder!");
-  }
-
-  //webserver pages - Start
-  server.on("/", handleRoot);
-  server.on("/go", handleGo);
-  server.on("/test.svg", drawGraph);
-  server.on("/inline", []() {
-    server.send(200, "text/plain", "this works as well");
-  });
-  //webserver pages - END
-  server.onNotFound(handleNotFound);
-  server.begin();
-  Serial.println("HTTP server started");
+  tft.reset();
+  uint16_t identifier = tft.readID();
+  tft.begin(identifier);
+  tftw = tft.width();
+  tfth = tft.height();
+  tft.fillScreen(BLACK);
   /*
-    // OTA
-    // Port defaults to 8266
-    // ArduinoOTA.setPort(8266);
-
-    // Hostname defaults to esp8266-[ChipID]
-    ArduinoOTA.setHostname("AutoCAR");
-
-    // No authentication by default
-    // ArduinoOTA.setPassword((const char *)"amati");
-
-    ArduinoOTA.onStart([]() {
-    Serial.println("OTA Start");
-    });
-    ArduinoOTA.onEnd([]() {
-    Serial.println("\nOTA End");
-    });
-    ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
-    });
-    ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("OTA Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("OTA Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("OTA Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("OTA Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("OTA Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("OTA End Failed");
-    });
-    ArduinoOTA.begin();
+    tft.setCursor(0, 0);
+    tft.setTextColor(WHITE);
+    tft.setTextSize(1);
+    tft.print("Width: ");
+    tft.print(tftw);
+    tft.println("px");
+    tft.print("Height: ");
+    tft.print(tfth);
+    tft.println("px");
   */
-}
 
-//LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP
-//LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP LOOP
+  //LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-
+}
 void loop() {
-  //ArduinoOTA.handle();
+  SonarSensor(trigPinF, echoPinF);
+  CarF = distance;
+  FormatDistance(0, 241, 120, 260, CarF);
+  
+  SonarSensor(trigPinR, echoPinR);
+  CarR = distance;
+  FormatDistance(61, 261, 120, 280, CarR);
+  
+  SonarSensor(trigPinL, echoPinL);
+  CarL = distance;
+  FormatDistance(0, 261, 60, 280, CarL);
+  
+  SonarSensor(trigPinB, echoPinB);
+  CarB = distance;
+  FormatDistance(0, 281, 120, 300, CarB);
 
-  // LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-LOOP-BLOCK-250ms-
-  if (millis() > (250 + lastJob250ms))
-  {
-    // runs every 250 miliseconds (250 ms)
-    server.handleClient();
-    SonarSensor(trigPinF, echoPinF);
-    carF = distance;/*
-    SonarSensor(trigPinR, echoPinR);
-    carR = distance;
-    SonarSensor(trigPinL, echoPinL);
-    carL = distance;
-    SonarSensor(trigPinB, echoPinB);
-    carB = distance;*/
-    lastJob250ms = millis();
-  } // 5s end
+  DrawRadar(CarF, CarL, CarB, CarR);
 
-  // LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-
-  if (millis() > (5000 + lastJob5s))
+  //LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s
+  if (millis() > (1000 + lastJob1s))
   {
-    // runs every 5 seconds (5000 ms)
-    MDNS.update();
-    Serial.print(carF);
-    Serial.print(", ");
-    Serial.print(carR);
-    Serial.print(", ");
-    Serial.print(carL);
-    Serial.print(", ");
-    Serial.print(carB);
-    Serial.println("");
-    lastJob5s = millis();
-  } // 5s end
+    // kód vykonaný každou 1 vteřinu (1000 ms)
+
+
+    lastJob1s = millis();
+  }
+
+  //LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-
+  if (millis() > (30000 + lastJob1s))
+  {
+    // kód vykonaný každých 30 vteřin (30000 ms)
+
+
+    lastJob1s = millis();
+  }
+
+  //LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min
+  if (millis() > (60000 + lastJob1s))
+  {
+    // kód vykonaný každou 1 minutu (60000 ms)
+
+
+    lastJob1s = millis();
+  }
+
+  //LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-
 }
 
 //FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS
 //FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS FUNCTIONS
-void handleRoot() {
-  Serial.println("HTTP server: Root page requested!");
-  carGO = 0;
-  Serial.println("AutoCAR STOP!");
-  char temp[400];
-  int sec = millis() / 1000;
-  int min = sec / 60;
-  int hr = min / 60;
-  // <meta http-equiv='refresh' content='5'/>
-  // <img src=\"/test.svg\" />
-  snprintf(temp, 400,
-           "<html>\
-  <head>\
-    <title>AutoCAR - Autonomous Car</title>\
-    <style>\
-      body { background-color: #cccccc; font-family: Arial, Helvetica, Sans-Serif; Color: #000088; }\
-      button { background-color: #00ff00; font-family: Arial, Helvetica, Sans-Serif; Color: #000088; }\
-    </style>\
-  </head>\
-  <body>\
-    <h1>AutoCAR STOP</h1>\
-    <form method=\"get\" action=\"/go\">\
-       <button type=\"submit\">AutoCAR GO!</button>\
-    </form>\
-    <p>Uptime: %02d:%02d:%02d</p>\
-  </body>\
-  </html>",
-           hr, min % 60, sec % 60
-          );
-  server.send(200, "text/html", temp);
-}
-
-void handleGo() {
-  Serial.println("HTTP server: Go page requested!");
-  carGO = 1;
-  Serial.println("AutoCAR GO!");
-  char temp[400];
-  int sec = millis() / 1000;
-  int min = sec / 60;
-  int hr = min / 60;
-  snprintf(temp, 400,
-           "<html>\
-  <head>\
-    <title>AutoCAR - Autonomous Car GO</title>\
-    <style>\
-      body { background-color: #cccccc; font-family: Arial, Helvetica, Sans-Serif; Color: #000088; }\
-      button { background-color: #ff0000; font-family: Arial, Helvetica, Sans-Serif; Color: #000088; }\
-    </style>\
-  </head>\
-  <body>\
-    <h1>AutoCAR GO!</h1>\
-    <form method=\"get\" action=\"/\">\
-       <button type=\"submit\">AutoCAR STOP!</button>\
-    </form>\
-    <p>Uptime: %02d:%02d:%02d</p>\
-  </body>\
-  </html>",
-           hr, min % 60, sec % 60
-          );
-  server.send(200, "text/html", temp);
-}
-
-void handleNotFound() {
-  Serial.println("HTTP server: Page not found!");
-  String message = "AutoCAR Error: File Not Found\n\n";
-  message += "URI: ";
-  message += server.uri();
-  message += "\nMethod: ";
-  message += (server.method() == HTTP_GET) ? "GET" : "POST";
-  message += "\nArguments: ";
-  message += server.args();
-  message += "\n";
-
-  for (uint8_t i = 0; i < server.args(); i++) {
-    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
-  }
-
-  server.send(404, "text/plain", message);
-}
-
-void drawGraph() {
-  String out = "";
-  char temp[100];
-  out += "<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" width=\"400\" height=\"150\">\n";
-  out += "<rect width=\"400\" height=\"150\" fill=\"rgb(250, 230, 210)\" stroke-width=\"1\" stroke=\"rgb(0, 0, 0)\" />\n";
-  out += "<g stroke=\"black\">\n";
-  int y = rand() % 130;
-  for (int x = 10; x < 390; x += 10) {
-    int y2 = rand() % 130;
-    sprintf(temp, "<line x1=\"%d\" y1=\"%d\" x2=\"%d\" y2=\"%d\" stroke-width=\"1\" />\n", x, 140 - y, x + 10, 140 - y2);
-    out += temp;
-    y = y2;
-  }
-  out += "</g>\n</svg>\n";
-
-  server.send(200, "image/svg+xml", out);
-}
-
 void SonarSensor(int trigPin, int echoPin)
 {
   digitalWrite(trigPin, LOW);
@@ -279,4 +137,80 @@ void SonarSensor(int trigPin, int echoPin)
   digitalWrite(trigPin, LOW);
   duration = pulseIn(echoPin, HIGH);
   distance = (duration / 2) / 29.1;
+}
+
+void FormatDistance(int rx1, int ry1, int rx2, int ry2, long mydistance)
+{
+  tft.fillRect(rx1, ry1, rx2, ry2, BLACK);
+  tft.setCursor(rx1+((rx2-rx1)/4), ry1);
+  if (mydistance > CarXMIN) {
+    tft.setTextColor(ORANGE);
+  }
+  if (mydistance > CarMIN) {
+    tft.setTextColor(YELLOW);
+  }
+  if (mydistance > CarOK)  {
+    tft.setTextColor(GREEN);
+  }
+  if (mydistance <= CarXMIN) {
+    tft.setTextColor(RED);
+  }
+  tft.setTextSize(2);
+  tft.print(mydistance);
+}
+
+void DrawRadar(long CarF, long CarL, long CarB, long CarR)
+{
+  if (CarF > CarXMIN) {
+    tft.fillTriangle(120, 120, 0, 0, 240, 0, ORANGE);
+  }
+  if (CarF > CarMIN) {
+    tft.fillTriangle(120, 120, 0, 0, 240, 0, YELLOW);
+  }
+  if (CarF > CarOK)  {
+    tft.fillTriangle(120, 120, 0, 0, 240, 0, GREEN);
+  }
+  if (CarF <= CarXMIN) {
+    tft.fillTriangle(120, 120, 0, 0, 240, 0, RED);
+  }
+  
+  if (CarL > CarXMIN) {
+    tft.fillTriangle(120, 120, 0, 0, 0, 240, ORANGE);
+  }
+  if (CarL > CarMIN) {
+    tft.fillTriangle(120, 120, 0, 0, 0, 240, YELLOW);
+  }
+  if (CarL > CarOK)  {
+    tft.fillTriangle(120, 120, 0, 0, 0, 240, GREEN);
+  }
+  if (CarL <= CarXMIN) {
+    tft.fillTriangle(120, 120, 0, 0, 0, 240, RED);
+  }
+
+  if (CarB > CarXMIN) {
+    tft.fillTriangle(120, 120, 240, 240, 0, 240, ORANGE);
+  }
+  if (CarB > CarMIN) {
+    tft.fillTriangle(120, 120, 240, 240, 0, 240, YELLOW);
+  }
+  if (CarB > CarOK)  {
+    tft.fillTriangle(120, 120, 240, 240, 0, 240, GREEN);
+  }
+  if (CarB <= CarXMIN) {
+    tft.fillTriangle(120, 120, 240, 240, 0, 240, RED);
+  }
+
+  
+  if (CarR > CarXMIN) {
+    tft.fillTriangle(120, 120, 240, 240, 240, 0, ORANGE);
+  }
+  if (CarR > CarMIN) {
+    tft.fillTriangle(120, 120, 240, 240, 240, 0, YELLOW);
+  }
+  if (CarR > CarOK)  {
+    tft.fillTriangle(120, 120, 240, 240, 240, 0, GREEN);
+  }
+  if (CarR <= CarXMIN) {
+    tft.fillTriangle(120, 120, 240, 240, 240, 0, RED);
+  }
 }

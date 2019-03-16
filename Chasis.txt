@@ -1,0 +1,15 @@
+Chasis:
+RED     +6 V
+BLACK   GND
+
+YELLOW - & GREY  +  => FORWARD
+YELLOW + & GREY  -  => BACKWARD
+BLUE   + & WHITE -  => RIGHT
+BLUE   - & WHITE +  => LEFT
+
+US distance Sensors HC-SR04
+Sensor Trigger Echo
+FRONT  49      48
+BACK   51      50
+LEFT   53      52
+RIGHT  23      22
