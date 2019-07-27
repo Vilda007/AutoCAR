@@ -8,6 +8,7 @@ BLUE   + & WHITE -  => RIGHT
 BLUE   - & WHITE +  => LEFT
 
 US distance Sensors HC-SR04
+       Violet  White
 Sensor Trigger Echo
 FRONT  49      48
 BACK   51      50

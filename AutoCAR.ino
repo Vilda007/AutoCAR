@@ -1,3 +1,6 @@
+#include <SWTFT.h>
+#include <TouchScreen.h>
+
 long lastJob1s = 0, lastJob30s = 0, lastJob1min = 0;
 int  tftw = 0, tfth = 0; // Display width, height
 int CarGO = 0;    //go?
@@ -11,13 +14,24 @@ long CarL = 0;    // Distance on Left
 long duration, distance;
 
 /*
-  US distance Sensors HC-SR04
-  Sensor Trigger Echo
-  FRONT  49      48
-  BACK   51      50
-  LEFT   53      52
-  RIGHT  23      22
+Chasis:
+RED     +6 V
+BLACK   GND
+
+YELLOW - & GREY  +  => FORWARD
+YELLOW + & GREY  -  => BACKWARD
+BLUE   + & WHITE -  => RIGHT
+BLUE   - & WHITE +  => LEFT
+
+US distance Sensors HC-SR04
+       Violet  White
+Sensor Trigger Echo
+FRONT  49      48
+BACK   51      50
+LEFT   53      52
+RIGHT  23      22
 */
+
 #define echoPinR 22
 #define trigPinR 23
 #define echoPinF 48
@@ -26,9 +40,6 @@ long duration, distance;
 #define trigPinB 51
 #define echoPinL 52
 #define trigPinL 53
-
-#include <Adafruit_GFX.h>    // Core graphics library
-#include "SWTFT.h" // Hardware-specific library
 
 // Assign human-readable names to some common 16-bit color values:
 #define BLACK   0x0000
@@ -63,36 +74,25 @@ void setup() {
   tftw = tft.width();
   tfth = tft.height();
   tft.fillScreen(BLACK);
-  /*
-    tft.setCursor(0, 0);
-    tft.setTextColor(WHITE);
-    tft.setTextSize(1);
-    tft.print("Width: ");
-    tft.print(tftw);
-    tft.println("px");
-    tft.print("Height: ");
-    tft.print(tfth);
-    tft.println("px");
-  */
-
-  //LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-
 }
+
+//LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-
 void loop() {
   SonarSensor(trigPinF, echoPinF);
   CarF = distance;
-  FormatDistance(0, 241, 120, 260, CarF);
+  //FormatDistance(0, 241, 120, 260, CarF);
 
   SonarSensor(trigPinR, echoPinR);
   CarR = distance;
-  FormatDistance(61, 261, 120, 280, CarR);
+  //FormatDistance(61, 261, 120, 280, CarR);
 
   SonarSensor(trigPinL, echoPinL);
   CarL = distance;
-  FormatDistance(0, 261, 60, 280, CarL);
+  //FormatDistance(0, 261, 60, 280, CarL);
 
   SonarSensor(trigPinB, echoPinB);
   CarB = distance;
-  FormatDistance(0, 281, 120, 300, CarB);
+  //FormatDistance(0, 281, 120, 300, CarB);
 
   DrawRadar(CarF, CarL, CarB, CarR);
 
@@ -131,9 +131,11 @@ void loop() {
 void SonarSensor(int trigPin, int echoPin)
 {
   digitalWrite(trigPin, LOW);
-  delayMicroseconds(2);
+  //delayMicroseconds(2);
+  delayMicroseconds(1);
   digitalWrite(trigPin, HIGH);
-  delayMicroseconds(5);
+  //delayMicroseconds(5);
+  delayMicroseconds(2);
   digitalWrite(trigPin, LOW);
   duration = pulseIn(echoPin, HIGH);
   distance = duration / 58.31;
@@ -174,8 +176,8 @@ void FormatDistance(int rx1, int ry1, int rx2, int ry2, long mydistance)
 
 void DrawRadar(long CarF, long CarL, long CarB, long CarR)
 {
-  tft.fillTriangle(120, 120, 0, 0, 240, 0, Colorize(CarF));
-  tft.fillTriangle(120, 120, 0, 0, 0, 240, Colorize(CarL));
-  tft.fillTriangle(120, 120, 240, 240, 0, 240, Colorize(CarB));
-  tft.fillTriangle(120, 120, 240, 240, 240, 0, Colorize(CarR));
+  tft.fillRect(100, 0, 40, 100, Colorize(CarF));
+  tft.fillRect(0, 100, 100, 40, Colorize(CarL));
+  tft.fillRect(100, 140, 40, 100, Colorize(CarB));
+  tft.fillRect(140, 100, 100, 40, Colorize(CarR));
 }
