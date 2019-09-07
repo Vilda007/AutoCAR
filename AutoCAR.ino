@@ -1,7 +1,7 @@
 #include <SWTFT.h>
 #include <TouchScreen.h>
 
-long lastJob1s = 0, lastJob30s = 0, lastJob1min = 0;
+long lastJob1s = 0,lastJob5s = 0,  lastJob10s = 0, lastJob30s = 0, lastJob1m = 0;
 int  tftw = 0, tfth = 0; // Display width, height
 int CarGO = 0;    //go?
 int CarOK = 75;   // OK Distance
@@ -18,7 +18,7 @@ Chasis:
 RED     +6 V
 BLACK   GND
 
-YELLOW - & GREY  +  => FORWARD
+YELLOW - & GREY  +  => FORWARDgg
 YELLOW + & GREY  -  => BACKWARD
 BLUE   + & WHITE -  => RIGHT
 BLUE   - & WHITE +  => LEFT
@@ -30,8 +30,23 @@ FRONT  49      48
 BACK   51      50
 LEFT   53      52
 RIGHT  23      22
+
+Relays
+MAIN F/B - orange PIN 24
+MAIN L/R - yellow PIN 25
+
+4 relays board
+F/B (1&2) - blue  PIN 30
+L/R (3&4) - green PIN 31
 */
 
+//Relay pins
+#define releMainFBPIN 24
+#define releMainLRPIN 25
+#define releFBPIN 30
+#define releLRPIN 31
+
+//US sensors PINs
 #define echoPinR 22
 #define trigPinR 23
 #define echoPinF 48
@@ -68,6 +83,14 @@ void setup() {
   pinMode(echoPinB, INPUT);
   pinMode(trigPinL, OUTPUT);
   pinMode(echoPinL, INPUT);
+  pinMode(releMainFBPIN, OUTPUT);
+  pinMode(releMainLRPIN, OUTPUT);
+  pinMode(releFBPIN, OUTPUT);
+  pinMode(releLRPIN, OUTPUT);
+  digitalWrite(releMainFBPIN, HIGH);
+  digitalWrite(releMainLRPIN, HIGH);
+  digitalWrite(releFBPIN, HIGH);
+  digitalWrite(releLRPIN, HIGH);
   tft.reset();
   uint16_t identifier = tft.readID();
   tft.begin(identifier);
@@ -78,6 +101,7 @@ void setup() {
 
 //LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-LOOP-
 void loop() {
+  
   SonarSensor(trigPinF, echoPinF);
   CarF = distance;
   //FormatDistance(0, 241, 120, 260, CarF);
@@ -96,6 +120,49 @@ void loop() {
 
   DrawRadar(CarF, CarL, CarB, CarR);
 
+  if ((CarF < CarXMIN) && (CarB < CarXMIN) && (CarL < CarXMIN) && (CarR < CarXMIN)){
+    CarGO = 0;
+  } else {
+    CarGO = 1;
+  }
+
+  /*
+  if (() && (CarGO == 1)) {
+    
+  }
+  */
+
+  if ((CarF > CarMIN) && (CarGO == 1)) {
+    GoFWD();
+  } else {
+    if ((CarB > CarF) && (CarGO == 1)) {
+      if ((CarL > CarR) && (CarGO == 1)) {
+        TurnLEFT();
+        GoBWD();
+      }
+      if ((CarL < CarR) && (CarGO == 1)) {
+        TurnRIGHT();
+        GoBWD();
+      }
+    } else {
+      GoSTOP();  
+    }
+  }
+
+  if ((CarL > CarOK) && (CarR > CarOK) && (CarGO == 1)) {
+    GoSTRAIT();
+  } else {
+    if ((CarL > CarR) && (CarGO == 1)) {
+      TurnLEFT();
+    } else {
+      if ((CarR > CarL) && (CarGO == 1)) {
+        TurnRIGHT();
+      } else {
+        GoSTOP();  
+      }  
+    } 
+  }
+  
   //LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s-LOOP-BLOCK-1s
   if (millis() > (1000 + lastJob1s))
   {
@@ -105,22 +172,39 @@ void loop() {
     lastJob1s = millis();
   }
 
+  //LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s-LOOP-BLOCK-5s
+  if (millis() > (5000 + lastJob5s))
+  {
+    // kód vykonaný každých 5 vteřin (5000 ms)
+    
+
+    lastJob5s = millis();
+  }
+
+    //LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s-LOOP-BLOCK-10s
+  if (millis() > (10000 + lastJob10s))
+  {
+    // kód vykonaný každych 10 vteřin (10000 ms)
+
+    lastJob10s = millis();
+  }
+
   //LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-LOOP-BLOCK-30s-
-  if (millis() > (30000 + lastJob1s))
+  if (millis() > (30000 + lastJob30s))
   {
     // kód vykonaný každých 30 vteřin (30000 ms)
+    
 
-
-    lastJob1s = millis();
+    lastJob30s = millis();
   }
 
   //LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min-LOOP-BLOCK-1min
-  if (millis() > (60000 + lastJob1s))
+  if (millis() > (60000 + lastJob1m))
   {
     // kód vykonaný každou 1 minutu (60000 ms)
 
 
-    lastJob1s = millis();
+    lastJob1m = millis();
   }
 
   //LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-LOOP-BLOCK-
@@ -142,6 +226,53 @@ void SonarSensor(int trigPin, int echoPin)
   if (distance > 110) {
     distance = 110;
   }
+}
+
+//STOP
+void GoSTOP(){
+  digitalWrite(releMainFBPIN, HIGH);
+  digitalWrite(releMainLRPIN, HIGH);
+  digitalWrite(releFBPIN, HIGH);
+  digitalWrite(releLRPIN, HIGH);
+  Serial.println("STOP");
+}
+
+//FORWARDS
+void GoFWD(){
+  digitalWrite(releMainFBPIN, HIGH);
+  digitalWrite(releFBPIN, HIGH);
+  digitalWrite(releMainFBPIN, LOW);
+  Serial.println("Forwards");
+}
+
+//BACKWARDS
+void GoBWD(){
+  digitalWrite(releMainFBPIN, HIGH);
+  digitalWrite(releFBPIN, LOW);
+  digitalWrite(releMainFBPIN, LOW);
+  Serial.println("Backwards");
+}
+
+//TURN LEFT
+void TurnLEFT(){
+  digitalWrite(releMainLRPIN, HIGH);
+  digitalWrite(releLRPIN, LOW);
+  digitalWrite(releMainLRPIN, LOW);
+  Serial.println("Turning LEFT");
+}
+
+//TURN RIGHT
+void TurnRIGHT(){
+  digitalWrite(releMainLRPIN, HIGH);
+  digitalWrite(releLRPIN, HIGH);
+  digitalWrite(releMainLRPIN, LOW);
+  Serial.println("Turning RIGHT");
+}
+
+//GO STRAIT
+void GoSTRAIT(){
+  digitalWrite(releMainLRPIN, HIGH);
+  Serial.println("Going STRAIT");
 }
 
 uint16_t Colorize (long mydistance) {
